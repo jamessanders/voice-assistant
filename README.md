@@ -149,6 +149,5 @@ voice-assistant/
     Dockerfile                   # Container build
     docker-compose.yml           # Local Docker setup
     requirements.txt             # TTS service dependencies
-  legacy/
-    voice_talk_interface.py      # Standalone CLI voice client (older approach)
+
 ```
