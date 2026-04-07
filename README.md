@@ -12,22 +12,22 @@ server.py (lightweight backend, any machine)
     │
     ├── POST /transcribe ──► transcription_service.py (Whisper, powerful machine)
     ├── POST /v1/chat/completions ──► LMStudio (LLM)
-    └── POST /synthesize ──► Kokoro TTS
+    └── POST /synthesize ──► kokoro-server/ (Kokoro TTS)
 ```
 
 Three external services are expected to be running:
 
 | Service | Purpose | Default URL |
 |---|---|---|
-| **Transcription service** | Whisper speech-to-text (we build this) | `http://localhost:8787` |
+| **Transcription service** | Whisper speech-to-text (included) | `http://localhost:8787` |
 | **LMStudio** | OpenAI-compatible LLM | `http://localhost:1234/v1` |
-| **Kokoro TTS** | Speech synthesis (`POST /synthesize`) | `http://localhost:5423` |
+| **Kokoro TTS** | Speech synthesis (included, see `kokoro-server/`) | `http://localhost:5423` |
 
 ## Prerequisites
 
 - Python 3.10+
 - [LMStudio](https://lmstudio.ai/) running with a model loaded and the local server started
-- Kokoro TTS server running (see `kokoro-server/` or [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx))
+- Kokoro TTS server (included in `kokoro-server/`, see its [README](kokoro-server/README.md))
 
 ## Quick Start
 
@@ -59,7 +59,17 @@ Open LMStudio, load a model, and start the local server (defaults to port 1234).
 
 ### Step 3: Start Kokoro TTS
 
-Start your Kokoro TTS server. It defaults to port 5423 and exposes `POST /synthesize`.
+```bash
+cd kokoro-server && docker compose up -d
+```
+
+Or run directly with Python:
+
+```bash
+cd kokoro-server && pip install -r requirements.txt && python server.py
+```
+
+The model (~88 MB) is downloaded automatically on first run and cached. See `kokoro-server/README.md` for configuration options.
 
 ### Step 4: Start the backend server
 
@@ -130,6 +140,11 @@ voice-assistant/
   static/
     index.html                   # Browser UI
     audio-processor.js           # AudioWorklet for mic capture
+  kokoro-server/
+    server.py                    # Kokoro TTS HTTP server
+    Dockerfile                   # Container build
+    docker-compose.yml           # Local Docker setup
+    requirements.txt             # TTS service dependencies
   requirements-server.txt        # Backend dependencies
   requirements-transcription.txt # Transcription service dependencies
 ```
