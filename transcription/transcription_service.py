@@ -46,6 +46,14 @@ def main():
     parser.add_argument("--port", type=int, default=8787)
     args = parser.parse_args()
 
+    if not os.environ.get("HF_TOKEN"):
+        print(
+            "WARNING: HF_TOKEN is not set. The model is gated — you must:\n"
+            "  1. Accept the terms at https://huggingface.co/CohereLabs/cohere-transcribe-03-2026\n"
+            "  2. Set HF_TOKEN=<your token> (from https://huggingface.co/settings/tokens)\n"
+            "     or run: huggingface-cli login"
+        )
+
     print(f"Loading model '{MODEL_ID}'...")
     processor = AutoProcessor.from_pretrained(MODEL_ID)
     model = CohereAsrForConditionalGeneration.from_pretrained(MODEL_ID, device_map="auto")

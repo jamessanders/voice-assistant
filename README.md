@@ -37,11 +37,17 @@ Start each component in its own terminal. The transcription service and external
 
 ### Step 1: Start the transcription service
 
+The model is gated on HuggingFace. Before first run:
+
+1. Accept the terms at [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026)
+2. Get a token from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+3. Either run `huggingface-cli login` once, or pass it inline:
+
 ```bash
-./transcription/start-transcription.sh
+HF_TOKEN=your-token ./transcription/start-transcription.sh
 ```
 
-The model (~4 GB) is downloaded from HuggingFace on first run and cached. Use `device_map="auto"` is used by default — it will use a GPU if available, otherwise CPU.
+The model (~4 GB) is downloaded and cached on first run. `device_map="auto"` uses a GPU if available, otherwise CPU.
 
 | Flag | Default | Description |
 |---|---|---|
