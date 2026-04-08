@@ -4,6 +4,7 @@ import os
 import time
 
 import httpx
+import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -16,6 +17,20 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "default-model")
 TTS_URL = os.environ.get("TTS_URL", "http://localhost:5423")
 TTS_VOICE = os.environ.get("TTS_VOICE", "af_heart")
 TTS_SPEED = float(os.environ.get("TTS_SPEED", "1.0"))
+
+# RMS energy threshold below which audio is treated as silence without calling
+# the transcription model.  Tune via SILENCE_THRESHOLD env var (0.0 disables).
+SILENCE_THRESHOLD = float(os.environ.get("SILENCE_THRESHOLD", "0.01"))
+
+
+def _audio_is_silent(raw_bytes: bytes) -> bool:
+    """Return True when the RMS energy of the audio is below SILENCE_THRESHOLD."""
+    if SILENCE_THRESHOLD <= 0 or len(raw_bytes) < 4:
+        return False
+    samples = np.frombuffer(raw_bytes, dtype=np.float32)
+    rms = float(np.sqrt(np.mean(samples ** 2)))
+    return rms < SILENCE_THRESHOLD
+
 
 WAKE_WORDS = ["computer"]
 SAMPLE_RATE = 16000
@@ -173,23 +188,29 @@ async def websocket_endpoint(ws: WebSocket):
 
             new_audio = bytes(chunks)
 
-            # Prepend overlap from the previous call to bridge word boundaries
-            audio_to_transcribe = previous_tail + new_audio
-
-            if len(new_audio) > OVERLAP_BYTES:
-                previous_tail = new_audio[-OVERLAP_BYTES:]
+            # Fast energy check — skip the (potentially slow) transcription model
+            # entirely when the new audio is silent.
+            if _audio_is_silent(new_audio):
+                is_silence = True
+                transcribed = ""
             else:
-                previous_tail = new_audio
+                # Prepend overlap from the previous call to bridge word boundaries
+                audio_to_transcribe = previous_tail + new_audio
 
-            try:
-                transcribed = await transcribe_audio(audio_to_transcribe)
-            except Exception as e:
-                print(f"Transcription error: {e}")
-                if not listening_for_command:
-                    await send_status(ws, "idle")
-                continue
+                if len(new_audio) > OVERLAP_BYTES:
+                    previous_tail = new_audio[-OVERLAP_BYTES:]
+                else:
+                    previous_tail = new_audio
 
-            is_silence = not transcribed.strip()
+                try:
+                    transcribed = await transcribe_audio(audio_to_transcribe)
+                except Exception as e:
+                    print(f"Transcription error: {e}")
+                    if not listening_for_command:
+                        await send_status(ws, "idle")
+                    continue
+
+                is_silence = not transcribed.strip()
 
             if listening_for_command:
                 now = time.monotonic()
