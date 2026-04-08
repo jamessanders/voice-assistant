@@ -1,31 +1,29 @@
 import argparse
-import io
+import asyncio
 import os
-import wave
+from concurrent.futures import ThreadPoolExecutor
 
-import httpx
 import numpy as np
+import torch
+from transformers import AutoProcessor, CohereAsrForConditionalGeneration
 from fastapi import FastAPI, File, UploadFile, Form
 import uvicorn
 
-COHERE_API_KEY = os.environ.get("COHERE_API_KEY", "")
-COHERE_MODEL = os.environ.get("COHERE_MODEL", "cohere-transcribe-03-2026")
+MODEL_ID = os.environ.get("MODEL_ID", "CohereLabs/cohere-transcribe-03-2026")
 LANGUAGE = os.environ.get("TRANSCRIPTION_LANGUAGE", "en")
 
 app = FastAPI()
+processor = None
+model = None
+executor = ThreadPoolExecutor(max_workers=1)
 
 
-def pcm_to_wav(raw: bytes, sample_rate: int) -> bytes:
-    """Convert raw float32 PCM bytes to a 16-bit mono WAV file in memory."""
-    samples = np.frombuffer(raw, dtype=np.float32)
-    pcm16 = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        wf.writeframes(pcm16.tobytes())
-    return buf.getvalue()
+def _run_inference(samples: np.ndarray, sample_rate: int) -> str:
+    inputs = processor(samples, sampling_rate=sample_rate, return_tensors="pt", language=LANGUAGE)
+    inputs = inputs.to(model.device, dtype=model.dtype)
+    with torch.no_grad():
+        outputs = model.generate(**inputs, max_new_tokens=256)
+    return processor.decode(outputs, skip_special_tokens=True)
 
 
 @app.post("/transcribe")
@@ -34,29 +32,26 @@ async def transcribe(
     sample_rate: int = Form(16000),
 ):
     raw = await audio.read()
-    wav_bytes = pcm_to_wav(raw, sample_rate)
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            "https://api.cohere.com/v2/audio/transcriptions",
-            headers={"Authorization": f"Bearer {COHERE_API_KEY}"},
-            files={"file": ("audio.wav", wav_bytes, "audio/wav")},
-            data={"model": COHERE_MODEL, "language": LANGUAGE},
-        )
-        resp.raise_for_status()
-        return {"text": resp.json().get("text", "").strip()}
+    samples = np.frombuffer(raw, dtype=np.float32)
+    loop = asyncio.get_event_loop()
+    text = await loop.run_in_executor(executor, _run_inference, samples, sample_rate)
+    return {"text": text.strip()}
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Cohere transcription service")
+    global processor, model
+
+    parser = argparse.ArgumentParser(description="Cohere local transcription service")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8787)
     args = parser.parse_args()
 
-    if not COHERE_API_KEY:
-        raise RuntimeError("COHERE_API_KEY environment variable is not set")
+    print(f"Loading model '{MODEL_ID}'...")
+    processor = AutoProcessor.from_pretrained(MODEL_ID)
+    model = CohereAsrForConditionalGeneration.from_pretrained(MODEL_ID, device_map="auto")
+    model.eval()
+    print(f"Model loaded on {model.device}")
 
-    print(f"Cohere transcription service ready (model: {COHERE_MODEL}, language: {LANGUAGE})")
     uvicorn.run(app, host=args.host, port=args.port)
 
 

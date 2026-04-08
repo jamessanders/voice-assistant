@@ -10,7 +10,7 @@ Browser (mic + speaker)
     ▼
 backend/server.py (lightweight backend, any machine)
     │
-    ├── POST /transcribe ──► transcription/transcription_service.py (Cohere)
+    ├── POST /transcribe ──► transcription/transcription_service.py (Cohere local)
     ├── POST /v1/chat/completions ──► LMStudio (LLM)
     └── POST /synthesize ──► tts/server.py (Kokoro TTS)
 ```
@@ -19,14 +19,13 @@ Three external services are expected to be running:
 
 | Service | Purpose | Default URL |
 |---|---|---|
-| **Transcription service** | Cohere speech-to-text (included) | `http://localhost:8787` |
+| **Transcription service** | Cohere ASR, runs locally (included) | `http://localhost:8787` |
 | **LMStudio** | OpenAI-compatible LLM | `http://localhost:1234/v1` |
 | **Kokoro TTS** | Speech synthesis (included, see `tts/`) | `http://localhost:5423` |
 
 ## Prerequisites
 
 - Python 3.10+
-- A [Cohere API key](https://dashboard.cohere.com/) (set as `COHERE_API_KEY`)
 - [LMStudio](https://lmstudio.ai/) running with a model loaded and the local server started
 - Kokoro TTS server (included in `tts/`, see its [README](tts/README.md))
 
@@ -38,11 +37,11 @@ Start each component in its own terminal. The transcription service and external
 
 ### Step 1: Start the transcription service
 
-Requires `COHERE_API_KEY` to be set in your environment.
-
 ```bash
-COHERE_API_KEY=your-key ./transcription/start-transcription.sh
+./transcription/start-transcription.sh
 ```
+
+The model (~4 GB) is downloaded from HuggingFace on first run and cached. Use `device_map="auto"` is used by default — it will use a GPU if available, otherwise CPU.
 
 | Flag | Default | Description |
 |---|---|---|
@@ -129,8 +128,7 @@ All configuration for `backend/server.py`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `COHERE_API_KEY` | *(required)* | Cohere API key |
-| `COHERE_MODEL` | `cohere-transcribe-03-2026` | Cohere transcription model |
+| `MODEL_ID` | `CohereLabs/cohere-transcribe-03-2026` | HuggingFace model ID |
 | `TRANSCRIPTION_LANGUAGE` | `en` | ISO-639-1 language code |
 
 ## File Structure
@@ -145,7 +143,7 @@ voice-assistant/
       index.html                 # Browser UI
       audio-processor.js         # AudioWorklet for mic capture
   transcription/
-    transcription_service.py     # Cohere transcription API proxy
+    transcription_service.py     # Cohere ASR local inference service
     start-transcription.sh       # Startup script (creates venv, installs deps, runs)
     requirements-transcription.txt
   tts/
