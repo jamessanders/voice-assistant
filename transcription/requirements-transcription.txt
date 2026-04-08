@@ -7,3 +7,4 @@ transformers>=5.4.0
 accelerate
 sentencepiece
 protobuf
+librosa
