@@ -48,7 +48,7 @@ def _infer_cohere(samples: np.ndarray, sample_rate: int) -> str:
     inputs = inputs.to(_model.device, dtype=_model.dtype)
     with torch.no_grad():
         outputs = _model.generate(**inputs, max_new_tokens=256)
-    return _processor.decode(outputs, skip_special_tokens=True)
+    return _processor.decode(outputs[0], skip_special_tokens=True)
 
 
 # -- Whisper ------------------------------------------------------------------
