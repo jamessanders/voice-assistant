@@ -134,7 +134,9 @@ All configuration for `backend/server.py`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `MODEL_ID` | `CohereLabs/cohere-transcribe-03-2026` | HuggingFace model ID |
+| `TRANSCRIPTION_BACKEND` | `cohere` | `cohere` (local HuggingFace) or `whisper` |
+| `MODEL_ID` | `CohereLabs/cohere-transcribe-03-2026` | HuggingFace model ID (cohere backend) |
+| `WHISPER_MODEL` | `base` | Whisper model size: `tiny`, `base`, `small`, `medium`, `large` (whisper backend) |
 | `TRANSCRIPTION_LANGUAGE` | `en` | ISO-639-1 language code |
 
 ## File Structure
